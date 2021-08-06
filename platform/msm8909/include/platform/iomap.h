@@ -232,6 +232,12 @@
 #define MDP_CGC_EN                  REG_MDP(0x100)
 #define MDP_AUTOREFRESH_CONFIG_P    REG_MDP(0x34C)
 #define MDP_AUTOREFRESH_EN          0x10000000
+
+#define MDP_VP_0_RGB_0_BASE                     REG_MDP(0x15000)
+
+#define MDP_VP_0_VIG_0_BASE                     REG_MDP(0x5000)
+
+#define MDP_VP_0_DMA_0_BASE                     REG_MDP(0x25000)
 /* Auto refresh fps = Panel fps / MDP_AUTOREFRESH_FRAME_NUM */
 /* Auto refresh fps = 60/10 = 6fps */
 #define MDP_AUTOREFRESH_FRAME_NUM   10

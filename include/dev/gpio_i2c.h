@@ -45,6 +45,9 @@ static const gpio_i2c_info_t _name = {         \
     .qcd            = ((_clk_ticks + 3) >> 2), \
 }
 
+#define gpio_config
+#define gpio_get
+
 void gpio_i2c_add_bus(uint32_t bus_id, const gpio_i2c_info_t* info);
 
 void gpio_i2c_init_early(void);

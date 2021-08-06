@@ -17,6 +17,7 @@
 
 #define MDP_CTL_TOP_MODE_SEL_CMD	BIT(17)
 
+
 static struct fbcon_config fb = {
 	.bpp    = 24,
 	.format = FB_FORMAT_RGB888,
