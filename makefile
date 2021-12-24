@@ -71,7 +71,7 @@ ifeq ($(ENABLE_TRUSTZONE),1)
 endif
 
 INCLUDES := -I$(BUILDDIR) -Iinclude
-CFLAGS := -O2 -g -fno-builtin -finline -Wno-multichar -Wno-unused-parameter -Wno-unused-function -include $(CONFIGHEADER)
+CFLAGS := -O2 -g -finline -Wno-multichar -Wno-unused-parameter -Wno-unused-function -include $(CONFIGHEADER)
 # -fcommon is needed to build this using GCC 10
 CFLAGS += -fcommon
 #CFLAGS += -Werror
@@ -86,8 +86,6 @@ endif
 ifeq ($(TARGET_BUILD_VARIANT),user)
   CFLAGS += -DDISABLE_FASTBOOT_CMDS=1
 endif
-
-CFLAGS += -DLK2ND_VERSION=\"$(LK2ND_VERSION)\"
 
 # setup toolchain prefix
 TOOLCHAIN_PREFIX ?= arm-eabi-
@@ -133,6 +131,9 @@ endif
 
 ifeq ($(OSVERSION_IN_BOOTIMAGE),1)
  DEFINES += OSVERSION_IN_BOOTIMAGE=1
+endif
+ifeq ($(LK2ND_FORCE_FASTBOOT),1)
+ DEFINES += LK2ND_FORCE_FASTBOOT=1
 endif
 
 ifeq ($(ENABLE_VB_ATTEST),1)
@@ -233,6 +234,7 @@ $(CONFIGHEADER): configheader
 	@rm -f $(CONFIGHEADER).tmp; \
 	echo \#ifndef __CONFIG_H > $(CONFIGHEADER).tmp; \
 	echo \#define __CONFIG_H >> $(CONFIGHEADER).tmp; \
+	echo \#define LK2ND_VERSION \"$(LK2ND_VERSION)\" >> $(CONFIGHEADER).tmp; \
 	for d in `echo $(DEFINES) | tr [:lower:] [:upper:]`; do \
 		echo "#define $$d" | sed "s/=/\ /g;s/-/_/g;s/\//_/g" >> $(CONFIGHEADER).tmp; \
 	done; \

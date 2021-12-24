@@ -11,6 +11,7 @@ struct smb1360_battery_detector {
 };
 
 static const struct smb1360_battery_detector detectors[] = {
+	{ "alcatel,smb1360-idol347", smb1360_idol347_detect_battery },
 	{ "wingtech,smb1360-wt88047", smb1360_wt88047_detect_battery },
 	{ "qcom,smb1360", smb1360_qcom_detect_battery }
 };
@@ -99,6 +100,14 @@ void smb1360_update_device_tree(void *fdt)
 		ret = fdt_setprop_u32(fdt, offset, "qcom,battery-profile", battery->profile - 1);
 		if (ret < 0) {
 			dprintf(CRITICAL, "Failed to set smb1360 qcom,battery-profile: %d\n", ret);
+			return;
+		}
+	}
+
+	if (battery->rslow_config) {
+		ret = fdt_setprop(fdt, offset, "qcom,otp-rslow-config", battery->rslow_config, 4);
+		if (ret < 0) {
+			dprintf(CRITICAL, "Failed to set smb1360 qcom,otp-rslow-config: %d\n", ret);
 			return;
 		}
 	}

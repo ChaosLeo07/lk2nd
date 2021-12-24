@@ -61,6 +61,7 @@
 #define QTMR_BASE                   APPS_APCS_F0_QTMR_V1_BASE
 
 #define APCS_BANKED_SAW2_BASE       (APPS_SS_BASE + 0x9000)
+#define APCS_L2_SAW2_BASE           (APPS_SS_BASE + 0x12000)
 
 #define PERIPH_SS_BASE              0x07800000
 
@@ -127,6 +128,7 @@
 #define SDCC1_N                     (CLK_CTL_BASE + 0x42010) /* n */
 #define SDCC1_D                     (CLK_CTL_BASE + 0x42014) /* d */
 
+#define SDC2_HDRV_PULL_CTL          (TLMM_BASE_ADDR + 0x109000)
 #define SDCC2_BCR                   (CLK_CTL_BASE + 0x43000) /* block reset */
 #define SDCC2_APPS_CBCR             (CLK_CTL_BASE + 0x43018) /* branch control */
 #define SDCC2_AHB_CBCR              (CLK_CTL_BASE + 0x4301C)
@@ -278,4 +280,9 @@
 
 #define TCSR_TZ_WONCE               0x193D000
 #define TCSR_BOOT_MISC_DETECT	    0x193D100
+
+#define BOOT_ROM_BASE               0x00100000
+#define BOOT_ROM_END                0x00124000  /* Crashes when reading more */
+
+#define RPM_DATA_RAM                0x00290000
 #endif

@@ -68,6 +68,9 @@ static mmu_section_t mmu_section_table[] = {
 	{    SCRATCH_ADDR,      SCRATCH_ADDR,     256,              SCRATCH_MEMORY},
         {    RPMB_SND_RCV_BUF,      RPMB_SND_RCV_BUF,        RPMB_SND_RCV_BUF_SZ,    IOMAP_MEMORY},
 	{    0x86400000,      0x86400000,     1,              COMMON_MEMORY},
+#ifdef SMP_SPIN_TABLE_BASE
+	{    SMP_SPIN_TABLE_BASE, SMP_SPIN_TABLE_BASE, 1,     COMMON_MEMORY},
+#endif
 };
 
 
@@ -130,8 +133,11 @@ void platform_init_mmu_mappings(void)
 	uint32_t table_size = ARRAY_SIZE(mmu_section_table);
 	uint32_t ddr_start = get_ddr_start();
 
-	/*Mapping the ddr start address for loading the kernel about 90 MB*/
-	sections = 90;
+	/*
+	 * Mapping the ddr start address for loading the kernel about 96 MB,
+	 * The ddr_start is at 0x80000000 and tz starts at 0x86000000 .
+	 */
+	sections = 96;
 	while(sections--)
 	{
 		arm_mmu_map_section(ddr_start + sections * MB, ddr_start + sections* MB, COMMON_MEMORY);

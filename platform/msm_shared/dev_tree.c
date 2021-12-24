@@ -124,7 +124,8 @@ static void dt_entry_list_delete(struct dt_entry_node *dt_node_member)
 	}
 }
 
-static int dev_tree_compatible(void *dtb, uint32_t dtb_size, int root_offset, struct dt_entry_node *dtb_list)
+static int dev_tree_compatible(void *dtb, void *real_dtb, uint32_t dtb_size,
+			       int root_offset, struct dt_entry_node *dtb_list)
 {
 	const void *prop = NULL;
 	const char *plat_prop = NULL;
@@ -197,6 +198,9 @@ static int dev_tree_compatible(void *dtb, uint32_t dtb_size, int root_offset, st
 	} else if (len_plat_id % min_plat_id_len) {
 		dprintf(INFO, "qcom,msm-id in device tree is (%d) not a multiple of (%d)\n",
 			len_plat_id, min_plat_id_len);
+		if (dtb_ver == DEV_TREE_VERSION_V1 && len_plat_id == DT_ENTRY_LGE8974_SIZE)
+			min_plat_id_len = DT_ENTRY_LGE8974_SIZE;
+		else
 		return false;
 	}
 
@@ -208,7 +212,7 @@ static int dev_tree_compatible(void *dtb, uint32_t dtb_size, int root_offset, st
 	 */
 	if (dtb_ver == DEV_TREE_VERSION_V1) {
 #if WITH_LK2ND
-		if (dtb_list->dt_entry_m && len_plat_id != DT_ENTRY_V1_SIZE) {
+		if (dtb_list->dt_entry_m && len_plat_id != min_plat_id_len) {
 			free(model);
 			return false;
 		}
@@ -232,8 +236,11 @@ static int dev_tree_compatible(void *dtb, uint32_t dtb_size, int root_offset, st
 			cur_dt_entry->pmic_rev[1] = board_pmic_target(1);
 			cur_dt_entry->pmic_rev[2] = board_pmic_target(2);
 			cur_dt_entry->pmic_rev[3] = board_pmic_target(3);
-			cur_dt_entry->offset = (uint32_t)dtb;
+			cur_dt_entry->offset = (uint32_t)real_dtb;
 			cur_dt_entry->size = dtb_size;
+
+			if (min_plat_id_len == DT_ENTRY_LGE8974_SIZE)
+				cur_dt_entry->board_hw_subtype = fdt32_to_cpu(((const struct dt_entry_v1 *)plat_prop)->offset);
 
 			dprintf(SPEW, "Found an appended flattened device tree (%s - %u %u 0x%x)\n",
 				model ? model : "unknown",
@@ -258,8 +265,8 @@ static int dev_tree_compatible(void *dtb, uint32_t dtb_size, int root_offset, st
 					board_soc_version());
 			}
 
-			plat_prop += DT_ENTRY_V1_SIZE;
-			len_plat_id -= DT_ENTRY_V1_SIZE;
+			plat_prop += min_plat_id_len;
+			len_plat_id -= min_plat_id_len;
 		}
 		free(cur_dt_entry);
 
@@ -380,7 +387,7 @@ static int dev_tree_compatible(void *dtb, uint32_t dtb_size, int root_offset, st
 						dt_entry_array[k].pmic_rev[1]= pmic_data[n].pmic_version[1];
 						dt_entry_array[k].pmic_rev[2]= pmic_data[n].pmic_version[2];
 						dt_entry_array[k].pmic_rev[3]= pmic_data[n].pmic_version[3];
-						dt_entry_array[k].offset = (uint32_t)dtb;
+						dt_entry_array[k].offset = (uint32_t)real_dtb;
 						dt_entry_array[k].size = dtb_size;
 						k++;
 					}
@@ -394,7 +401,7 @@ static int dev_tree_compatible(void *dtb, uint32_t dtb_size, int root_offset, st
 					dt_entry_array[k].pmic_rev[1]= board_pmic_target(1);
 					dt_entry_array[k].pmic_rev[2]= board_pmic_target(2);
 					dt_entry_array[k].pmic_rev[3]= board_pmic_target(3);
-					dt_entry_array[k].offset = (uint32_t)dtb;
+					dt_entry_array[k].offset = (uint32_t)real_dtb;
 					dt_entry_array[k].size = dtb_size;
 					k++;
 				}
@@ -486,7 +493,8 @@ void *dev_tree_appended(void *kernel, uint32_t kernel_size, uint32_t dtb_offset,
 	}
 	dtb = kernel + app_dtb_offset;
 	while (((uintptr_t)dtb + sizeof(struct fdt_header)) < (uintptr_t)kernel_end) {
-		struct fdt_header dtb_hdr;
+		struct fdt_header dtb_hdr __attribute__ ((aligned(8)));
+		void *dtb_aligned = dtb;
 		uint32_t dtb_size;
 
 		/* the DTB could be unaligned, so extract the header,
@@ -504,7 +512,13 @@ void *dev_tree_appended(void *kernel, uint32_t kernel_size, uint32_t dtb_offset,
 			return NULL;
 		}
 
-		dev_tree_compatible(dtb, dtb_size, 0, dt_entry_queue);
+		/* Make sure DTB is aligned properly if necessary :/ */
+		if ((uintptr_t)dtb & 7) {
+			memcpy(tags, dtb, dtb_size);
+			dtb_aligned = tags;
+		}
+
+		dev_tree_compatible(dtb_aligned, dtb, dtb_size, 0, dt_entry_queue);
 
 		/* goto the next device tree if any */
 		dtb += dtb_size;
@@ -1343,7 +1357,8 @@ int dev_tree_add_mem_info(void *fdt, uint32_t offset, uint64_t addr, uint64_t si
 
 /* Top level function that updates the device tree. */
 int update_device_tree(void *fdt, const char *cmdline,
-					   void *ramdisk, uint32_t ramdisk_size, unsigned char* mac)
+					   void *ramdisk, uint32_t ramdisk_size, unsigned char* mac,
+		       bool arm64)
 {
 	int ret = 0;
 	uint32_t offset;
@@ -1496,7 +1511,7 @@ int update_device_tree(void *fdt, const char *cmdline,
 	}
 
 #if WITH_LK2ND
-	lk2nd_update_device_tree(fdt, cmdline);
+	lk2nd_update_device_tree(fdt, cmdline, arm64);
 #endif
 	fdt_pack(fdt);
 
@@ -1539,7 +1554,7 @@ int dev_tree_get_dt_entry(const void *fdt, int offset, struct dt_entry *dt_entry
 		.dt_entry_m = dt_entry
 	};
 
-	if (!dev_tree_compatible((void*)fdt, fdt_totalsize(fdt), offset, &node))
+	if (!dev_tree_compatible((void*)fdt, (void*)fdt, fdt_totalsize(fdt), offset, &node))
 		return false;
 
 	if (platform_dt_absolute_match(dt_entry, NULL)) {

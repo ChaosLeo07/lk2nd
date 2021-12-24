@@ -42,7 +42,7 @@
 #include <../../../app/aboot/devinfo.h>
 #include <lk2nd.h>
 #if TARGET_MSM8916
-#include "psci.h"
+#include <psci.h>
 #endif
 
 static const char *unlock_menu_common_msg = "If you unlock the bootloader, "\
@@ -388,7 +388,7 @@ static void display_fastboot_menu_print_fw_info(char *msg, size_t msg_size)
 		 */
 		arg.x0 = MAKE_SIP_SCM_CMD(SCM_SVC_MILESTONE_32_64_ID, SCM_SVC_MILESTONE_CMD_ID);
 		arg.hvc = true;
-		hvc_el2 = scm_call2(&arg, NULL) == -5;
+		hvc_el2 = scm_call2(&arg, NULL) != -2;
 	}
 
 	snprintf(msg, msg_size, "EL2 - %s\n",
@@ -473,24 +473,40 @@ void display_fastboot_menu_renew(struct select_msg_info *fastboot_msg_info)
 
 	memset(msg_buf, 0, sizeof(msg_buf));
 	get_bootloader_version((unsigned char *) msg_buf);
-	snprintf(msg, sizeof(msg), "BOOTLOADER VERSION - %s\n",
-		msg_buf);
-	display_fbcon_menu_message(msg, FBCON_COMMON_MSG, common_factor);
+	if (msg_buf[0]) {
+		snprintf(msg, sizeof(msg), "BOOTLOADER - %s\n",
+			msg_buf);
+		display_fbcon_menu_message(msg, FBCON_COMMON_MSG, common_factor);
+	}
 
-#if !WITH_LK2ND
 	memset(msg_buf, 0, sizeof(msg_buf));
 	get_baseband_version((unsigned char *) msg_buf);
-	snprintf(msg, sizeof(msg), "BASEBAND VERSION - %s\n",
-		msg_buf);
-	display_fbcon_menu_message(msg, FBCON_COMMON_MSG, common_factor);
-#else
+	if (msg_buf[0]) {
+		snprintf(msg, sizeof(msg), "BASEBAND - %s\n",
+			msg_buf);
+		display_fbcon_menu_message(msg, FBCON_COMMON_MSG, common_factor);
+	}
+
+#if WITH_LK2ND
+	if (lk2nd_dev.carrier) {
+		snprintf(msg, sizeof(msg), "CARRIER - %s\n", lk2nd_dev.carrier);
+		display_fbcon_menu_message(msg, FBCON_COMMON_MSG, common_factor);
+	}
+
 	if (lk2nd_dev.panel.name) {
 		snprintf(msg, sizeof(msg), "PANEL - %s\n", lk2nd_dev.panel.name);
 		display_fbcon_menu_message(msg, FBCON_COMMON_MSG, common_factor);
 	}
 	if (lk2nd_dev.battery) {
+		unsigned int type = FBCON_COMMON_MSG;
+
+		if (strncmp(lk2nd_dev.battery, "ERROR", strlen("ERROR")) == 0)
+			type = FBCON_RED_MSG;
+		else if (strncmp(lk2nd_dev.battery, "WARNING", strlen("WARNING")) == 0)
+			type = FBCON_YELLOW_MSG;
+
 		snprintf(msg, sizeof(msg), "BATTERY - %s\n", lk2nd_dev.battery);
-		display_fbcon_menu_message(msg, FBCON_COMMON_MSG, common_factor);
+		display_fbcon_menu_message(msg, type, common_factor);
 	}
 #endif
 

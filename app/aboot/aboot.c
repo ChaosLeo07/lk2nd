@@ -68,6 +68,8 @@
 #include <libfdt.h>
 #include <dev_tree.h>
 #include <lk2nd.h>
+
+#include "fs_boot.h"
 #endif
 
 #include <reboot.h>
@@ -815,7 +817,7 @@ void boot_linux(void *kernel, unsigned *tags,
 	mac = generate_mac_address();
 
 	/* Update the Device Tree */
-	ret = update_device_tree((void *)tags, final_cmdline, ramdisk, ramdisk_size, mac);
+	ret = update_device_tree((void *)tags, final_cmdline, ramdisk, ramdisk_size, mac, IS_ARM64(kptr));
 	if(ret)
 	{
 		dprintf(CRITICAL, "ERROR: Updating Device Tree Failed \n");
@@ -1388,10 +1390,6 @@ int boot_linux_from_mmc(void)
 	}
 #endif
 
-	/* Move kernel, ramdisk and device tree to correct address */
-	memmove((void*) hdr->kernel_addr, kernel_start_addr, kernel_size);
-	memmove((void*) hdr->ramdisk_addr, (char *)(image_addr + page_size + kernel_actual), hdr->ramdisk_size);
-
 	#if DEVICE_TREE
 	if(dt_size) {
 		dt_table_offset = ((uint32_t)image_addr + page_size + kernel_actual + ramdisk_actual + second_actual);
@@ -1480,6 +1478,10 @@ int boot_linux_from_mmc(void)
 		}
 	}
 	#endif
+
+	/* Move kernel, ramdisk and device tree to correct address */
+	memmove((void*) hdr->kernel_addr, kernel_start_addr, kernel_size);
+	memmove((void*) hdr->ramdisk_addr, (char *)(image_addr + page_size + kernel_actual), hdr->ramdisk_size);
 
 	if (boot_into_recovery && !device.is_unlocked && !device.is_tampered)
 		target_load_ssd_keystore();
@@ -2122,7 +2124,11 @@ void read_device_info(device_info *dev)
 
 #if WITH_LK2ND
 	if (lk2nd_dev.bootloader)
-		strcpy(dev->bootloader_version, lk2nd_dev.bootloader);
+		strlcpy(dev->bootloader_version, lk2nd_dev.bootloader,
+			sizeof(dev->bootloader_version));
+	if (lk2nd_dev.radio)
+		strlcpy(dev->radio_version, lk2nd_dev.radio,
+			sizeof(dev->radio_version));
 #endif
 }
 
@@ -2495,10 +2501,6 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 	}
 #endif
 
-	/* Load ramdisk & kernel */
-	memmove((void*) hdr->ramdisk_addr, ptr + page_size + kernel_actual, hdr->ramdisk_size);
-	memmove((void*) hdr->kernel_addr, (char*) (kernel_start_addr), kernel_size);
-
 #if DEVICE_TREE
 	if (check_aboot_addr_range_overlap(hdr->tags_addr, kernel_actual) ||
 		check_ddr_addr_range_bound(hdr->tags_addr, kernel_actual))
@@ -2524,6 +2526,10 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 		}
 	}
 #endif
+
+	/* Load ramdisk & kernel */
+	memmove((void*) hdr->ramdisk_addr, ptr + page_size + kernel_actual, hdr->ramdisk_size);
+	memmove((void*) hdr->kernel_addr, (char*) (kernel_start_addr), kernel_size);
 
 	fastboot_okay("");
 	fastboot_stop();
@@ -4006,11 +4012,24 @@ void aboot_init(const struct app_descriptor *app)
 #endif
 #endif
 
+#if LK2ND_FORCE_FASTBOOT
+	boot_into_fastboot = true;
+	dprintf(INFO, "Fastboot mode was forced with compile-time flag.\n");
+#endif
+
 normal_boot:
 	if (!boot_into_fastboot)
 	{
 		if (target_is_emmc_boot())
 		{
+			/* Try to boot from first fs we can find */
+			ssize_t loaded_file = fsboot_boot_first(target_get_scratch_address(), target_get_max_flash_size());
+
+			if (loaded_file > 0)
+				cmd_boot(NULL, target_get_scratch_address(), target_get_max_flash_size());
+
+			dprintf(CRITICAL, "Unable to load boot.img from ext2. Continuing legacy boot\n");
+
 #if RECOVERY_MESSAGES
 			if(emmc_recovery_init())
 				dprintf(ALWAYS,"error in emmc_recovery_init\n");
@@ -4056,6 +4075,9 @@ normal_boot:
 
 	/* dump partition table for debug info */
 	partition_dump();
+
+	/* Log stuff for fs-boot */
+	fsboot_test();
 
 	/* initialize and start fastboot */
 	fastboot_init(target_get_scratch_address(), target_get_max_flash_size());

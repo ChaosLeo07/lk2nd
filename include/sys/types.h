@@ -23,12 +23,7 @@
 #ifndef __SYS_TYPES_H
 #define __SYS_TYPES_H
 
-#ifndef __cplusplus
-#define false 0
-#define true 1
-typedef int bool;
-#endif
-
+#include <stdbool.h>
 #include <stddef.h>
 #include <limits.h>
 #include <stdint.h>
@@ -42,9 +37,6 @@ typedef unsigned short u_short;
 typedef unsigned int u_int;
 typedef unsigned long u_long;
 
-#ifndef _SIZE_T_DEFINED_
-typedef unsigned long size_t;
-#endif
 typedef long          ssize_t;
 typedef long long     off_t;
 
